@@ -50,4 +50,13 @@ public class Author {
     public void setSurname(String surname){
         this.surname = surname;
     }
+
+    @Override
+    public String toString() {
+        return "Author{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", surname='" + surname + '\'' +
+                '}';
+    }
 }

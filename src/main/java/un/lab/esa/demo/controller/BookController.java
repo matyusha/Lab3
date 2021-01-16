@@ -7,6 +7,8 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
 import un.lab.esa.demo.model.Book;
+import un.lab.esa.demo.model.enums.ChangeType;
+import un.lab.esa.demo.notifications.JmsSenderService;
 import un.lab.esa.demo.repository.BookRepository;
 
 import javax.websocket.server.PathParam;
@@ -19,10 +21,12 @@ import java.util.Optional;
 public class BookController {
 
     private BookRepository bookRepository;
+    private final JmsSenderService jmsSenderService;
 
     @Autowired
-    public BookController(BookRepository bookRepository) {
+    public BookController(BookRepository bookRepository, JmsSenderService jmsSenderService) {
         this.bookRepository = bookRepository;
+        this.jmsSenderService = jmsSenderService;
     }
 
     @GetMapping(value = "/books")
@@ -48,35 +52,32 @@ public class BookController {
     }
 
     @PostMapping("/createBook")
-    public Book createBook(@RequestBody Book bookToCreate) {
-        return bookRepository.save(bookToCreate);
+    public void createBook(@RequestBody Book bookToCreate) throws NoSuchFieldException, IllegalAccessException {
+        bookRepository.save(bookToCreate);
+        jmsSenderService.sendCreateChange(bookToCreate);
     }
 
     @PutMapping("/updateBook")
-    public Book updateBook(@RequestBody Book bookToUpdate) {
+    public void updateBook(@RequestBody Book bookToUpdate) throws NoSuchFieldException, IllegalAccessException {
         Optional<Book> existingBook = bookRepository.findById(bookToUpdate.getId());
         if (existingBook.isPresent()) {
-            Book bookToSave = existingBook.get();
-            bookToSave.setTitle(bookToUpdate.getTitle());
-            bookToSave.setPrice(bookToUpdate.getPrice());
-            bookToSave.setYear(bookToUpdate.getYear());
-            bookToSave.setAuthors(bookToUpdate.getAuthors());
-            return bookRepository.save(bookToSave);
+            Book book = existingBook.get();
+            bookRepository.save(bookToUpdate);
+            jmsSenderService.sendUpdateChange(book, bookToUpdate);
         }
-        else return bookRepository.save(bookToUpdate);
+        else {
+            bookRepository.save(bookToUpdate);
+            jmsSenderService.sendCreateChange(bookToUpdate);
+        }
     }
 
     @DeleteMapping("/deleteBookById")
-    public void deleteBookById(@PathParam("id") int id) {
+    public void deleteBookById(@PathParam("id") int id) throws NoSuchFieldException, IllegalAccessException {
         if (bookRepository.existsById(id)) {
+            Book bookToDelete = bookRepository.findById(id).get();
             bookRepository.deleteById(id);
+            jmsSenderService.sendDeleteChange(bookToDelete);
         }
     }
-
-    @DeleteMapping("/deleteAllBooks")
-    public void deleteAllBooks() {
-        bookRepository.deleteAll();
-    }
-
 
 }

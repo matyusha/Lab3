@@ -91,7 +91,7 @@ public class Book {
                 ", title='" + title + '\'' +
                 ", price=" + price +
                 ", year=" + year +
-                ", authors=" + authors +
+                ", authors=" + authors.toString() +
                 '}';
     }
 }
