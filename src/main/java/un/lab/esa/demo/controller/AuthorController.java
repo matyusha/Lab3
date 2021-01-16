@@ -7,6 +7,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
 import un.lab.esa.demo.model.Author;
+import un.lab.esa.demo.notifications.JmsSenderService;
 import un.lab.esa.demo.repository.AuthorRepository;
 
 import javax.websocket.server.PathParam;
@@ -19,10 +20,12 @@ import java.util.Optional;
 public class AuthorController {
 
     private AuthorRepository authorRepository;
+    private final JmsSenderService jmsSenderService;
 
     @Autowired
-    public  AuthorController(AuthorRepository authorRepository){
+    public AuthorController(AuthorRepository authorRepository, JmsSenderService jmsSenderService) {
         this.authorRepository = authorRepository;
+        this.jmsSenderService = jmsSenderService;
     }
 
     @GetMapping(value = "/authors")
@@ -34,46 +37,45 @@ public class AuthorController {
         return modelAndView;
     }
 
-    @GetMapping(value = "/getAllAuthors", produces = { MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_XML_VALUE  })
-    public Iterable<Author> getAllAuthors(){
+    @GetMapping(value = "/getAllAuthors", produces = {MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_XML_VALUE})
+    public Iterable<Author> getAllAuthors() {
         return authorRepository.findAll();
     }
 
-    @GetMapping(value = "/getAuthorById", produces = { MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_XML_VALUE  })
+    @GetMapping(value = "/getAuthorById", produces = {MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_XML_VALUE})
     public Author getAuthorById(@PathParam("id") int id) throws Exception {
         Optional<Author> requestedAuthor = authorRepository.findById(id);
-        if (requestedAuthor.isPresent()){
+        if (requestedAuthor.isPresent()) {
             return requestedAuthor.get();
-        }
-        else throw new Exception("There is no author with such id");
+        } else throw new Exception("There is no author with such id");
     }
 
     @PostMapping("/createAuthor")
-    public Author createAuthor(@RequestBody Author authorToCreate){
-        return authorRepository.save(authorToCreate);
+    public void createAuthor(@RequestBody Author authorToCreate) throws NoSuchFieldException, IllegalAccessException {
+        authorRepository.save(authorToCreate);
+        jmsSenderService.sendCreateChange(authorToCreate);
     }
 
     @PutMapping("/updateAuthor")
-    public Author updateAuthor(@RequestBody Author authorToUpdate){
+    public void updateAuthor(@RequestBody Author authorToUpdate) throws NoSuchFieldException, IllegalAccessException {
         Optional<Author> existingAuthor = authorRepository.findById(authorToUpdate.getId());
-        if (existingAuthor.isPresent()){
-            Author authorToSave = existingAuthor.get();
-            authorToSave.setName(authorToUpdate.getName());
-            authorToSave.setSurname(authorToUpdate.getSurname());
-            return authorRepository.save(authorToSave);
+        if (existingAuthor.isPresent()) {
+            Author author = existingAuthor.get();
+            authorRepository.save(authorToUpdate);
+            jmsSenderService.sendUpdateChange(author, authorToUpdate);
+        } else {
+            authorRepository.save(authorToUpdate);
+            jmsSenderService.sendCreateChange(authorToUpdate);
         }
-        else return authorRepository.save(authorToUpdate);
+
     }
 
     @DeleteMapping("/deleteAuthor")
-    public void deleteAuthor(@PathParam("id") int id){
-        if (authorRepository.existsById(id)){
+    public void deleteAuthor(@PathParam("id") int id) throws NoSuchFieldException, IllegalAccessException {
+        if (authorRepository.existsById(id)) {
+            Author author = authorRepository.findById(id).get();
             authorRepository.deleteById(id);
+            jmsSenderService.sendDeleteChange(author);
         }
-    }
-
-    @DeleteMapping("/deleteAllAuthors")
-    public void deleteAllAuthors(){
-        authorRepository.deleteAll();
     }
 }
